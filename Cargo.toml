@@ -1,8 +1,8 @@
 [package]
 name = "cursive_table_view"
-version = "0.15.0"
+version = "0.15.0+disablesort.1"
 edition = "2021"
-authors = ["Ivo Wetzel <ivo.wetzel@googlemail.com>", "Alexandre Bury <alexandre.bury@gmail.com>"]
+authors = ["Ivo Wetzel <ivo.wetzel@googlemail.com>", "Alexandre Bury <alexandre.bury@gmail.com>", "Lauri Koskela <lk@lkoskela.com>"]
 description = "A basic table view implementation for cursive."
 repository = "https://github.com/BonsaiDen/cursive_table_view.git"
 readme = "README.md"
