@@ -122,6 +122,7 @@ pub struct TableView<T, H> {
     column_select: bool,
     columns: Vec<TableColumn<H>>,
     column_indicies: HashMap<H, usize>,
+    sorting_enabled: bool,
 
     focus: usize,
     items: Vec<T>,
@@ -193,6 +194,7 @@ where
             column_select: false,
             columns: Vec::new(),
             column_indicies: HashMap::new(),
+            sorting_enabled: true,
 
             focus: 0,
             items: Vec::new(),
@@ -296,6 +298,10 @@ where
     /// Sorts the table using the specified table `column` and the passed
     /// `order`.
     pub fn sort_by(&mut self, column: H, order: Ordering) {
+        if !self.sorting_enabled {
+            return;
+        }
+
         if self.column_indicies.contains_key(&column) {
             for c in &mut self.columns {
                 // Move selection back to the sorted column.
@@ -314,9 +320,22 @@ where
     /// Sorts the table using the currently active column and its
     /// ordering.
     pub fn sort(&mut self) {
+        if !self.sorting_enabled {
+            return;
+        }
         if let Some((column, order)) = self.order() {
             self.sort_items(column, order);
         }
+    }
+
+    /// Enables or disables sorting in the table view.
+    pub fn set_sorting_enabled(&mut self, enabled: bool) {
+        self.sorting_enabled = enabled;
+    }
+
+    /// Disables sorting in the table view
+    pub fn sorting_disabled(self) -> Self {
+        self.with(|s| s.sorting_enabled = false)
     }
 
     /// Returns the currently active column that is used for sorting
@@ -529,13 +548,15 @@ where
             self.rows_to_items.push(i);
         }
 
-        if let Some((column, order)) = self.order() {
-            // Preserve the selected column if possible.
-            let selected_column = self.columns.iter().find(|c| c.selected).map(|c| c.column);
-            self.sort_by(column, order);
-            if let Some(column) = selected_column {
-                for c in &mut self.columns {
-                    c.selected = c.column == column;
+        if self.sorting_enabled {
+            if let Some((column, order)) = self.order() {
+                // Preserve the selected column if possible.
+                let selected_column = self.columns.iter().find(|c| c.selected).map(|c| c.column);
+                self.sort_by(column, order);
+                if let Some(column) = selected_column {
+                    for c in &mut self.columns {
+                        c.selected = c.column == column;
+                    }
                 }
             }
         }
@@ -890,6 +911,8 @@ where
                     if !self.column_next() {
                         return EventResult::Ignored;
                     }
+                } else if !self.sorting_enabled {
+                    return EventResult::Ignored;
                 } else {
                     self.column_select = true;
                 }
@@ -899,6 +922,8 @@ where
                     if !self.column_prev() {
                         return EventResult::Ignored;
                     }
+                } else if !self.sorting_enabled {
+                    return EventResult::Ignored;
                 } else {
                     self.column_select = true;
                 }
@@ -999,7 +1024,10 @@ where
 {
     fn draw(&self, printer: &Printer) {
         self.draw_columns(printer, "╷ ", |printer, column| {
-            let color = if self.enabled && (column.order != Ordering::Equal || column.selected) {
+            let color = if self.enabled
+                && self.sorting_enabled
+                && (column.order != Ordering::Equal || column.selected)
+            {
                 if self.column_select && column.selected && self.enabled && printer.focused {
                     theme::ColorStyle::highlight()
                 } else {
@@ -1010,7 +1038,7 @@ where
             };
 
             printer.with_color(color, |printer| {
-                column.draw_header(printer);
+                column.draw_header(printer, self.sorting_enabled);
             });
         });
 
@@ -1141,28 +1169,32 @@ impl<H: Copy + Clone + 'static> TableColumn<H> {
         }
     }
 
-    fn draw_header(&self, printer: &Printer) {
-        let order = match self.order {
-            Ordering::Less => "^",
-            Ordering::Greater => "v",
-            Ordering::Equal => " ",
+    fn draw_header(&self, printer: &Printer, sorting_enabled: bool) {
+        let order = if sorting_enabled {
+            match self.order {
+                Ordering::Less => " [^]",
+                Ordering::Greater => " [v]",
+                Ordering::Equal => " [ ]",
+            }
+        } else {
+            "    "
         };
 
         let header = match self.alignment {
             HAlign::Left => format!(
-                "{:<width$} [{}]",
+                "{:<width$}{}",
                 self.title,
                 order,
                 width = self.width.saturating_sub(4)
             ),
             HAlign::Right => format!(
-                "{:>width$} [{}]",
+                "{:>width$}{}",
                 self.title,
                 order,
                 width = self.width.saturating_sub(4)
             ),
             HAlign::Center => format!(
-                "{:^width$} [{}]",
+                "{:^width$}{}",
                 self.title,
                 order,
                 width = self.width.saturating_sub(4)
